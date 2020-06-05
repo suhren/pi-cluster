@@ -22,8 +22,20 @@ https://www.raspberrypi.org/documentation/configuration/wireless/headless.md
 1. Insert the SD card and wait! The setup might take some time. Keep an eye on your client list on your router or some other way of scanning your network and you should see that the new IP address of the PI should appear after some time. At this point it might still run some updates so wait for that to finish before connecting with SSH.
 1. Note: I kept getting the "Destination host unreachable" when attempting to ping the PI after installation. I actually had to restart my home router to make sure that the connection worked with the PI. I think the error might have been that the PI was connected to the 5GHz or perhaps the guest network instead of the main network.
 
+## Diagnostics
+
+Check temperature:
+
+    vcgencmd measure_temp
+
+Check if throttled:
+
+    vcgencmd get_throttled
+
 
 ## Setup
+
+This setup is based on [this video tutorial](https://www.youtube.com/watch?v=B2wAJ5FLOYw) by Jeremey LaCroix `LearnLinuxTV`. He also has a web site at jaylacroix.com.
 
 1. Insert the empty SD card in your main computer
 1. Flash image (Debian Buster Lite)
@@ -38,15 +50,15 @@ We can create a file called `ssh` to enable SSH by default:
 Then
 
     cd /run/media/<user>/rootfs
-    cd /etc
+    cd etc/
     sudo nano hostname
 
 The default hostname is `raspberrypi`. We can change this to something better like 
 
-    rpi-0
-    rpi-1
-    rpi-2
-    rpi-3
+    rpic-master
+    rpic-worker-01
+    rpic-worker-02
+    rpic-worker-03
 
 Then
 
@@ -66,7 +78,7 @@ Run `ssh pi@<ip-address>`
 
 For each raspberry pi:
 
-    apt-get update && apt-get upgrade -y && apt-get autoremove && apt-get autoclean
+    sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y && sudo apt-get autoclean
 
 Then
 
@@ -82,8 +94,7 @@ If we do `free -m` we should see that there is Swap space available. We don't wa
 
 Now `free -m` should show 0 for the swap. It will however come back after reboot so we need to make sure it is gone permanently:
 
-    sudo dphys-swapfile uninstall
-    sudo apt purge dphys-swapfile
+    sudo dphys-swapfile uninstall; sudo apt purge dphys-swapfile -y
 
 Then run `sudo reboot` and wat for the PIs to come back up. SSH back into them and install docker:
 
@@ -101,7 +112,7 @@ Then SSH back in.
 Add the following:
 
     {
-        "exec-opts": ["native.cgroupdriver=systemd],
+        "exec-opts": ["native.cgroupdriver=systemd"],
         "log-driver": "json-file",
         "log-opts": {
             "max-size": "100m"
@@ -125,11 +136,15 @@ Then run
 
     sudo apt update
 
-Then
+Note, you may have to rerun the previous command a few times if you get the error `Some index files failed to download. They have been ignored, or old ones used instead.` Then run
 
     sudo apt install kubeadm kubectl kubelet -y
 
 Now, only run this command for the **MASTER**:
+
+    sudo kubeadm init --pod-network-cidr=10.17.0.0/16 --service-cidr=10.18.0.0/24
+
+or the following if you have a domain:
 
     sudo kubeadm init --pod-network-cidr=10.17.0.0/16 --service-cidr=10.18.0.0/24 --service-dns-domain=mydomain.com
 
@@ -163,4 +178,7 @@ Check if they have joined by
 
     kubectl get nodes
 
-    
+
+## Notes
+
+I actually had a problem initially with the master node of my cluster being very slow compared to the other nodes. It lead to problems with e.g. running `kubeadm init` timing out due to the node being so slow. After some testing I tried replacing the SD card with another identical one (Toshiba M203 32GB) and it worked, and was lot faster!  
