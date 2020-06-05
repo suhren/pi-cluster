@@ -1,9 +1,0 @@
-version: "3.4"
-services: 
-    python:
-        build:
-            context: .
-        container_name: k8s-flask-app
-        image: suhren/k8s-flask-app:1.0.0
-        ports:
-        - 5000:5000
