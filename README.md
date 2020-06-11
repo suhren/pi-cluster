@@ -179,6 +179,128 @@ Check if they have joined by
     kubectl get nodes
 
 
+## Laptop as DHCP
+Partially based on a guide by [Paloseco](https://ubuntuforums.org/showthread.php?t=2379769):
+
+Internet < ----- > Router-192.168.0.1 [RJ45] < ---- > [eth0] PC1-192.168.0.x [eth1] < ---- > [eth2] PC2-192.168.127.x
+
+### Step 1: IP forwarding
+Enable IP forwarding on computer 1:
+    
+    sudo echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+
+### Step 2: IP tables
+
+    sudo /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    sudo /sbin/iptables -A FORWARD -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+    sudo /sbin/iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+
+### Step 3: IP for eth1
+
+    sudo ifconfig eth1 192.168.127.1 netmask 255.255.255.0
+
+### Step 4: DHCP server
+
+    sudo apt-get install isc-dhcp-server
+    sudo sed -i '/INTERFACESv4=/c\INTERFACESv4=\"eth1\"' /etc/default/isc-dhcp-server
+
+    subnet 10.0.0.0 netmask 255.255.255.0 { 
+        authoritative; 
+        range 10.0.0.30 10.0.0.60;  
+    }
+
+Edit `/etc/dhcp/dhcpd.conf` so it looks like that:
+
+    subnet 192.168.127.0 netmask 255.255.255.0 {
+        interface enp0s31f6;
+        range 192.168.127.100 192.168.127.200;
+        option subnet-mask 255.255.255.0;
+        option routers 192.168.127.1;
+        option broadcast-address 192.168.127.255;
+        option domain-name-servers 8.8.8.8, 8.8.4.4;
+        option domain-name "rpic.lab";
+        default-lease-time 600;
+        max-lease-time 7200;
+        ddns-update-style none;
+    
+        host server {
+            hardware ethernet 8c:16:45:11:af:81;
+            fixed-address 192.168.127.1;
+        }
+        host rpic-master {
+            hardware ethernet dc:a6:32:70:d5:2b;
+            fixed-address 192.168.127.101;
+        }
+        host rpic-worker-01 {
+            hardware ethernet dc:a6:32:50:f0:56;
+            fixed-address 192.168.127.102;
+        }
+        host rpic-worker-02 {
+            hardware ethernet dc:a6:32:4c:06:08;
+            fixed-address 192.168.127.103;
+        }
+        host rpic-worker-03 {
+            hardware ethernet dc:a6:32:70:cc:ac;
+            fixed-address 192.168.127.104;
+        }
+    }
+
+### Step 5: Run DHCP server
+
+    sudo ifconfig eth1 down
+    sudo ifconfig eth1 up
+    sudo service isc-dhcp-server restart
+
+### Step 6: Startup script
+
+    sudo echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+    sudo /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    sudo /sbin/iptables -A FORWARD -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+    sudo /sbin/iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+    sudo ifconfig eth1 192.168.127.1 netmask 255.255.255.0
+    sudo ifconfig eth1 down
+    sudo ifconfig eth1 up
+    sudo service isc-dhcp-server restart
+
+Change permissions and move to sbin:
+
+    sudo cp sharepc1.sh /usr/local/sbin/sharepc1.sh
+    sudo chmod 777 /usr/local/sbin/sharepc1.sh
+
+### Other useful commands
+
+Find the name of your wired ethernet interface with the command:
+
+    sudo lshw -C network
+    ifconfig
+
+Then we start the server with
+
+    sudo systemctl start isc-dhcp-server.service
+
+and we can check the status with
+
+    sudo systemctl status isc-dhcp-server.service
+    sudo journalctl -fu isc-dhcp-server.service
+
+If there is a problem you can use
+
+    sudo systemctl stop isc-dhcp-server.service
+    sudo systemctl restart isc-dhcp-server.service
+
+The devices should now be assigned an IP address which can be listed with the command
+
+    dhcp-lease-list
+
+Flush DHCP leases:
+
+    sudo rm -f var/lib/dhcp/dhcpd.leases
+    sudo rm -f var/lib/dhcp/dhcpd.leases~
+
 ## Notes
 
-I actually had a problem initially with the master node of my cluster being very slow compared to the other nodes. It lead to problems with e.g. running `kubeadm init` timing out due to the node being so slow. After some testing I tried replacing the SD card with another identical one (Toshiba M203 32GB) and it worked, and was lot faster!  
+I actually had a problem initially with the master node of my cluster being very slow compared to the other nodes. It lead to problems with e.g. running `kubeadm init` timing out due to the node being so slow. After some testing I tried replacing the SD card with another identical one (Toshiba M203 32GB) and it worked, and was lot faster!
+
+
+## docker login issue with docker-compose on ARM
+https://github.com/docker/compose/issues/6023
