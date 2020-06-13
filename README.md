@@ -378,3 +378,9 @@ Then set the path to the config file:
 Then test the kubectl with
 
     kubectl version
+
+### Useful commands
+
+Shut down all PIs:
+
+    ansible all -i inventory/hosts.ini -a "shutdown now" -b
