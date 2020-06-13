@@ -135,14 +135,13 @@ We now need the key which we can get with
 Then run 
 
     sudo apt update
-
-Note, you may have to rerun the previous command a few times if you get the error `Some index files failed to download. They have been ignored, or old ones used instead.` Then run
-
     sudo apt install kubeadm kubectl kubelet -y
+
+Note, you may have to rerun the previous command (update) a few times if you get the error `Some index files failed to download. They have been ignored, or old ones used instead.`
 
 Now, only run this command for the **MASTER**:
 
-    sudo kubeadm init --pod-network-cidr=10.17.0.0/16 --service-cidr=10.18.0.0/24
+    sudo kubeadm init --pod-network-cidr=10.17.0.0/16 --service-cidr=10.18.0.0/24 --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook
 
 or the following if you have a domain:
 
@@ -304,3 +303,11 @@ I actually had a problem initially with the master node of my cluster being very
 
 ## docker login issue with docker-compose on ARM
 https://github.com/docker/compose/issues/6023
+
+
+# k3s
+
+https://k3s.io/
+
+https://github.com/rancher/k3s-ansible
+
