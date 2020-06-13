@@ -309,5 +309,72 @@ https://github.com/docker/compose/issues/6023
 
 https://k3s.io/
 
-https://github.com/rancher/k3s-ansible
+## Install Ansible:
 
+    sudo apt update
+    sudo apt install software-properties-common
+    sudo apt-add-repository --yes --update ppa:ansible/ansible
+    sudo apt install ansible
+
+
+## Generate SSH keys and share with PIs
+
+    cd ~/.ssh
+    ssh-keygen
+
+For each PI:
+
+    ssh-copy-id <USERNAME>@<IP-ADDRESS>
+
+If there is a problem with old keys:
+
+    ssh-keygen -f "/home/<USERNAME>/.ssh/known_hosts" -R "<IP-OF-PI>"
+
+## Use Ansible:
+
+    cd ~/git
+    git clone https://github.com/rancher/k3s-ansible
+    cd k3s-ansible
+
+Due to a bug in the (at the time) newest relase causing this error:
+
+    fatal: [192.168.127.101]: FAILED! => {"msg": "The conditional check 'raspbian is true' failed. The error was: template error while templating string: no test named 'true'. String: {% if raspbian is true %} True {% else %} False {% endif %}\n\nThe error appears to be in '/home/suhren/git/k3s-ansible/roles/raspbian/tasks/main.yml': line 10, column 3, but may\nbe elsewhere in the file depending on the exact syntax problem.\n\nThe offending line appears to be:\n\n\n- name: Activating cgroup support\n  ^ here\n"}
+
+I had to revert back to an older commit:
+
+    git checkout 5d92b0ac41ec56b370301fd2fb6d6cccee98e020
+
+Fill the `hosts.ini` with the IPs of your PIs and make sure it is located in `inventory/hosts.ini`.
+
+Change the username from `debian` to the user of the PIs (default `pi`) in the file `inventory/group_vars/all.yml`. Due to another bug at the time, I also had to move the directory `group_vars/all.yml` to the root.
+
+
+Copy the kube config file to your local machine:
+
+    mkdir ~/.kube
+    scp pi@192.168.127.101:~/.kube/config ~/.kube/config-rpic
+
+Install kubectl:
+
+    sudo nano /etc/apt/sources.list.d/kubernetes.list
+
+Add
+
+    deb http://apt.kubernetes.io/ kubernetes-xenial main
+
+We now need the key which we can get with
+
+    curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+Then run 
+
+    sudo apt update
+    sudo apt install kubectl
+
+Then set the path to the config file:
+
+     export KUBECONFIG=~/.kube/config-rpic
+
+Then test the kubectl with
+
+    kubectl version
