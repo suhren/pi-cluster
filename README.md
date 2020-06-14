@@ -32,7 +32,6 @@ Check if throttled:
 
     vcgencmd get_throttled
 
-
 ## Setup
 
 This setup is based on [this video tutorial](https://www.youtube.com/watch?v=B2wAJ5FLOYw) by Jeremey LaCroix `LearnLinuxTV`. He also has a web site at jaylacroix.com.
@@ -69,6 +68,89 @@ Change the name here as well.
     cd ~
 
 And remove the SD card. We can repeat these steps for the remaining PIs.
+
+## Local machine
+https://dev.to/awwsmm/building-a-raspberry-pi-hadoop-spark-cluster-8b2
+
+Open the file `/etc/hosts` and add
+
+    192.168.127.101 rpic-master
+    192.168.127.102 rpic-worker-01
+    192.168.127.103 rpic-worker-02
+    192.168.127.104 rpic-worker-03
+
+Create the file `~/.ssh/config` with the following content:
+
+    Host rpic-master
+    User pi
+    Hostname 192.168.127.101
+
+    Host rpic-worker-01
+    User pi
+    Hostname 192.168.127.102
+
+    Host rpic-worker-02
+    User pi
+    Hostname 192.168.127.103
+
+    Host rpic-worker-03
+    User pi
+    Hostname 192.168.127.104
+
+Now we can setup public/private key pairs for each pi:
+
+    cd ~/.ssh
+    ssh-keygen
+
+For each PI:
+
+    ssh-copy-id <USERNAME>@<IP-ADDRESS>
+
+If there is a problem with old keys:
+
+    ssh-keygen -f "/home/<USERNAME>/.ssh/known_hosts" -R "<IP-OF-PI>"
+
+We can make our lives even easier with some aliases. In the file `~/.bashrc` add the lines
+
+    alias rpic-master="ssh rpic-master"
+    alias rpic-worker-01="ssh rpic-worker-01"
+    alias rpic-worker-02="ssh rpic-worker-02"
+    alias rpic-worker-03="ssh rpic-worker-03"
+
+Also in `.bashrc`, we can add the following functions which will list each Pi in the cluster and also allow us to issue commands to them all at once:
+
+    function rpic-list {
+        grep "pi" /etc/hosts | awk '{print $2}' | grep -v $(hostname)
+    }
+
+    function rpic-cmd {
+        for pi in $(rpic-list); do printf "\n$pi:\n"; ssh $pi "$@"; done
+    }
+
+    function rpic-ping {
+        for pi in $(rpic-list); do ping -w 1 $pi &>/dev/null && echo $pi success || echo $pi fail; done
+    }
+
+    function rpic-reboot {
+        rpic-cmd "sudo shutdown -r now"
+    }
+
+    function rpic-shutdown {
+        rpic-cmd "sudo shutdown now"
+    }
+
+    function rpic-scp {
+        for pi in $(rpic-list); do
+            cat $1 | ssh $pi "sudo tee $1" > /dev/null 2>&1
+        done
+    }
+
+Then we can run commands on all nodes in the cluster with e.g.
+
+    rpic-cmd date
+    rpic-cmd "{ hostname & date; } | cat"
+    rpic-cmd "sudo reboot now"
+
 
 ## SSH
 
