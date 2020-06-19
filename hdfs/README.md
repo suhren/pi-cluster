@@ -9,11 +9,11 @@ Hadoop requires Java. This is installed by default for some Raspbain distributio
 
 If it is not installed, it has to be installed on all nodes with
 
-    sudo apt install default-jre
+    sudo apt install default-jdk
 
 or on all nodes with
 
-    rpic-cmd "sudo apt install default-jre -y"
+    rpic-cmd "sudo apt install default-jdk -y"
 
 ## Hadoop
 
@@ -309,6 +309,10 @@ and boot the HDFS with
 
     start-dfs.sh && start-yarn.sh
 
+Make sure all nodes are available by running the command
+
+    hdfs dfsadmin -report
+
 Now we can create a test file an put it in the HDFS:
 
     echo "Hello world!" >> hello_world.txt
@@ -327,15 +331,19 @@ However, you (and me) might get this error at this point:
 
     Error “Failed to retrieve data from /webhdfs/v1/?op=LISTSTATUS: Server Error” when using hadoop
 
+https://stackoverflow.com/questions/48735869/error-failed-to-retrieve-data-from-webhdfs-v1-op-liststatus-server-error-wh:
+
 The problem here seems to be related to the java version you are using on the master node (NameNode). In my case I am using `openjdk 11.0.7 2020-04-14`.
 
 The solution here is to download Hadoop 2.9.2 pre-compiled binaries and copy the file `share/hadoop/yarn/lib/activation-1.1.jar` from the downloaded files to the same directory in `$HADOOP_HOME` on the name node, as this file actually seems to be missing here.
 
-While you can download the entirety of the Hadooop 2.9.2 binaries to get this file from [here](https://hadoop.apache.org/releases.html), it might be easier to just grab the file on its own from [here](https://mvnrepository.com/artifact/javax.activation/activation/1.1.1), or using this direct link with wget on the master node:
+While you can download the entirety of the Hadooop 2.9.2 binaries to get this file from [here](https://hadoop.apache.org/releases.html), it might be easier to just grab the file on its own from [here](https://mvnrepository.com/artifact/javax.activation/activation/1.1), or using this direct link with wget on the master node:
     
-    wget -c https://repo1.maven.org/maven2/javax/activation/activation/1.1.1/activation-1.1.1.jar
+    wget -c https://repo1.maven.org/maven2/javax/activation/activation/1.1/activation-1.1.jar
 
     cp activation-1.1.jar /opt/hadoop/share/hadoop/yarn/lib/
+
+NOTE: THIS HAS TO BE DONE FOR ALL NODES IN THE CLUSTER! Otherwise yarn will note be able to start the nodemangers for each node.
 
 Now just restart with
 
@@ -346,3 +354,80 @@ Now just restart with
 
 After reloading the web interface, you should now be able to browse the HDFS without the error!
 
+### Configuring Spark
+
+On the master node, first change the folllowing variables in `.bashrc`:
+
+    export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+    export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
+
+Now create the spark configuration file:
+
+    cd $SPARK_HOME/conf
+    sudo mv spark-defaults.conf.template spark-defaults.conf
+
+Add these lines to the end of the file:
+
+    spark.master            yarn
+    spark.driver.memory     465m
+    spark.yarn.am.memory    356m
+    spark.executor.memory   465m
+    spark.executor.cores    4
+
+Read more about this configuration [here](https://www.linode.com/docs/databases/hadoop/install-configure-run-spark-on-top-of-hadoop-yarn-cluster/).
+
+Now reboot the cluster again with
+
+    stop-dfs.sh && stop-yarn.sh
+    start-dfs.sh && start-yarn.sh
+
+As with HDFS, YARN provides a web ui at `http://rpic-master:8088`.
+
+We can now test the cluster by submitting an example job to Spark (make sure the versions in these filenames match whatever version you have installed):
+
+    spark-submit --deploy-mode client --class org.apache.spark.examples.SparkPi $SPARK_HOME/examples/jars/spark-examples_2.11-2.4.6.jar 7
+
+At this point it might just work, or there may be some errors. For me, I had a problem with the job getting stuck in the state of
+
+    15/09/02 14:45:17 INFO Client: Application report for application_1441188100451_0007 (state: ACCEPTED)
+    15/09/02 14:45:18 INFO Client: Application report for application_1441188100451_0007 (state: ACCEPTED)
+
+My issue seems to be due to the YARN nodes not starting up. By running
+
+    yarn node -list -all
+
+I get no listed nodes. This issue was fixed by adding the missing `activation-1.1.jar` to all nodes as described previously and restarting the cluster!
+
+There are also some tools available for us to configure the parameters. Its usage is described [here](https://stackoverflow.com/questions/49579156/hadoop-yarn-application-is-added-to-the-scheduler-and-is-not-yet-activated-sk).
+
+    wget http://public-repo-1.hortonworks.com/HDP/tools/2.6.0.3/hdp_manual_install_rpm_helper_files-2.6.0.3.8.tar.gz
+    tar zxvf hdp_manual_install_rpm_helper_files-2.6.0.3.8.tar.gz
+    rm hdp_manual_install_rpm_helper_files-2.6.0.3.8.tar.gz
+    mv hdp_manual_install_rpm_helper_files-2.6.0.3.8/ hdp_conf_files
+
+    python hdp_conf_files/scripts/yarn-utils.py -c 4 -m 8 -d 1 false
+
+The output is:
+- c number of cores you have for each node
+- m amount of memory you have for each node (Giga)
+- d number of disk you have for each node
+- bool "True" if HBase is installed; "False" if not
+
+Using the tool, I got the output:
+
+    Using cores=4 memory=2GB disks=1 hbase=True
+    Profile: cores=4 memory=2048MB reserved=0GB usableMem=0GB disks=1
+    Num Container=3
+    Container Ram=682MB
+    Used Ram=1GB
+    Unused Ram=0GB
+    yarn.scheduler.minimum-allocation-mb=682
+    yarn.scheduler.maximum-allocation-mb=2046
+    yarn.nodemanager.resource.memory-mb=2046
+    mapreduce.map.memory.mb=682
+    mapreduce.map.java.opts=-Xmx545m
+    mapreduce.reduce.memory.mb=1364
+    mapreduce.reduce.java.opts=-Xmx1091m
+    yarn.app.mapreduce.am.resource.mb=1364
+    yarn.app.mapreduce.am.command-opts=-Xmx1091m
+    mapreduce.task.io.sort.mb=272
