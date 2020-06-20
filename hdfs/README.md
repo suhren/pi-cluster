@@ -241,7 +241,28 @@ Now edit the following files in `/opt/hadoop/etc/hadoop`:
         <name>mapreduce.reduce.memory.mb</name>
         <value>128</value>
     </property>
+    <property>
+        <name>mapred.child.java.opts</name>
+        <value>-Xmx1024m</value>
+    </property>
+    <property>
+        <name>yarn.app.mapreduce.am.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
+    <property>
+        <name>mapreduce.map.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
+    <property>
+        <name>mapreduce.reduce.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
+
     </configuration> 
+
+The entries for `yarn.app.mapreduce.am.env`, `mapreduce.map.env`, and `mapreduce.reduce.env` are added specifically to make MapReduce with e.g. MRJob work on the cluster. If these are not added when we submit jobs to hadoop, we will get an error where mrjob returns a non-zero exit status 256. I found this out by looking at the submitted job logs at the spark dashboard on `http://rpic-master:8088` where this was the suggested solution, and it worked.
+
+In addition, for similar reasons, we set `mapred.child.java.opts` to make sure the Java headp has at least 1024 MB, since the default is only 128MB. Before adding this, I got the error `Java Heap space Out Of Memory Error` when submitting map-reduce jobs with MRJob. The solution was found here: https://stackoverflow.com/questions/30295606/java-heap-space-out-of-memory-error-while-running-a-mapreduce-program. 
 
 `yarn-site.xml`:
 
