@@ -9,11 +9,18 @@ Hadoop requires Java. This is installed by default for some Raspbain distributio
 
 If it is not installed, it has to be installed on all nodes with
 
-    sudo apt install default-jdk
+    sudo apt install openjdk-8-jdk
 
 or on all nodes with
 
-    rpic-cmd "sudo apt install default-jdk -y"
+    rpic-cmd "sudo apt install openjdk-8-jdk -y"
+
+NOTE: openjdk-8-jdk is the correct version of Java for this tutorial. It is actually important that the correct java version is used depending on which version of Hadoop and Spark will be used on the system. For example, I was using Spark 2.4.6 and tried to used openjdk-11-jdk which was the default when using default-jdk. This lead to an error down the road when trying to submit spark jobs where I got the error
+
+    py4j.protocol.Py4JJavaError: An error occurred while calling z:org.apache.spark.api.python.PythonRDD.collectAndServe.
+    : java.lang.IllegalArgumentException: Unsupported class file major version 55
+
+What I had to do at that point was to manually install openjdk-8-jdk and set the defauly Java version on all nodes with the command `sudo update-alternatives --config java` and reset the $JAVA_HOME path variable. It is definitely easiest if you install the right Java version from the start though!
 
 ## Hadoop
 
