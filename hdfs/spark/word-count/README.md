@@ -2,13 +2,18 @@
 
 To install PySpark, we can simply use pip. We do however need to make sure to install the same version as the exisiting Apache Spark installation on the cluster, otherwise we might get an error like 
 
-    pyspark error does not exist in the jvm error when initializing SparkContext
+```
+pyspark error does not exist in the jvm error when initializing SparkContext
+```
 
 when trying to run PySpark. To find our existing spark version on the master node, we can run the command
 
-    spark-submit --version
+```bash
+spark-submit --version
+```
 
 And we should get an output like
+
 ```
 Welcome to
       ____              __
@@ -27,10 +32,14 @@ Type --help for more information.
 
 We can then install PySpark for Python 3 matching this version with
 
-    pip3 install pyspark==2.4.6
+```bash
+pip3 install pyspark==2.4.6
+```
 
 or for Python 2:
 
-    pip install pyspark==2.4.6 --no-cache-dir
+```bash
+pip install pyspark==2.4.6 --no-cache-dir
+```
 
 I had to use `--no-cache-dir` since I was getting a memory error when trying to install for Python 2 for some reason!

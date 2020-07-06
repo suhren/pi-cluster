@@ -5,7 +5,7 @@ import shutil
 # sc = pyspark.SparkContext(master='local[*]', appName='word-count')
 
 # If we are running on the entire cluster and letting YARN distribute the work
-sc = pyspark.SparkContext(master='yarn-client', appName='word-count')
+sc = pyspark.SparkContext(master='yarn', appName='word-count')
 
 text_file = sc.textFile('big.txt')
 counts = text_file.flatMap(lambda line: line.split(' ')) \
